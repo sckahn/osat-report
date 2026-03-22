@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 const navItems = [
   { href: "/", label: "시장 동향" },
   { href: "/kr", label: "한국 증시" },
+  { href: "/themes", label: "테마별 동향" },
   { href: "/signals", label: "매수/매도 시그널" },
 ];
 
