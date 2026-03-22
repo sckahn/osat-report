@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchOsatNews } from "@/lib/news-fetcher";
+import { fetchKrNews } from "@/lib/kr-news-fetcher";
 import { fetchQuotes } from "@/lib/yahoo-finance";
 import { generateNews, generateMarketOverview, generateOsatIndexHistory } from "@/lib/mock-data";
+import type { OsatNews } from "@/lib/types";
 
 const OSAT_TICKERS = ["ASX", "AMKR", "TSM", "NVDA", "AMD", "INTC"];
 
@@ -11,13 +13,22 @@ export async function GET(request: NextRequest) {
   const type = searchParams.get("type") || "all";
 
   if (type === "news") {
-    // Try real news first
+    // Fetch both Korean and English news
     try {
-      const realNews = await fetchOsatNews(date);
-      if (realNews.length > 0) return NextResponse.json(realNews);
-      // If no news for specific date, try without date filter
-      const allNews = await fetchOsatNews();
-      if (allNews.length > 0) return NextResponse.json(allNews);
+      const [krNews, enNews] = await Promise.all([
+        fetchKrNews().catch(() => [] as OsatNews[]),
+        fetchOsatNews().catch(() => [] as OsatNews[]),
+      ]);
+      // Merge, dedupe by title, sort by date
+      const seenTitles = new Set<string>();
+      const merged: OsatNews[] = [];
+      for (const n of [...krNews, ...enNews]) {
+        if (seenTitles.has(n.title)) continue;
+        seenTitles.add(n.title);
+        merged.push(n);
+      }
+      merged.sort((a, b) => b.date.localeCompare(a.date));
+      if (merged.length > 0) return NextResponse.json(merged.slice(0, 40));
     } catch (e) {
       console.error("News fallback to mock:", e);
     }
@@ -92,7 +103,17 @@ export async function GET(request: NextRequest) {
   // type === "all"
   try {
     const [news, overview] = await Promise.all([
-      fetchOsatNews(date).catch(() => generateNews(date)),
+      (async () => {
+        const [kr, en] = await Promise.all([
+          fetchKrNews().catch(() => [] as OsatNews[]),
+          fetchOsatNews().catch(() => [] as OsatNews[]),
+        ]);
+        const seen = new Set<string>();
+        const merged: OsatNews[] = [];
+        for (const n of [...kr, ...en]) { if (!seen.has(n.title)) { seen.add(n.title); merged.push(n); } }
+        merged.sort((a, b) => b.date.localeCompare(a.date));
+        return merged.length > 0 ? merged.slice(0, 40) : generateNews(date);
+      })(),
       (async () => {
         const quotes = await fetchQuotes(OSAT_TICKERS);
         if (quotes.length === 0) return generateMarketOverview(date);

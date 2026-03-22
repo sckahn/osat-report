@@ -8,7 +8,7 @@ interface StockSearchProps {
   placeholder?: string;
 }
 
-export default function StockSearch({ onSelect, placeholder = "종목명 또는 티커 검색..." }: StockSearchProps) {
+export default function StockSearch({ onSelect, placeholder = "영문명, 티커, 종목코드(6자리) 검색..." }: StockSearchProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [open, setOpen] = useState(false);
@@ -30,8 +30,39 @@ export default function StockSearch({ onSelect, placeholder = "종목명 또는 
     if (value.length < 1) { setResults([]); setOpen(false); return; }
     timer.current = setTimeout(async () => {
       setLoading(true);
+      const trimmed = value.trim();
+
+      // Korean stock code: 6 digits -> try both .KS and .KQ
+      if (/^\d{6}$/.test(trimmed)) {
+        try {
+          const res = await fetch(`/api/search?q=${trimmed}`);
+          const data = await res.json();
+          if (data.length > 0) {
+            setResults(data);
+            setOpen(true);
+            setLoading(false);
+            return;
+          }
+          // If Yahoo search fails, create manual entries
+          setResults([
+            { symbol: `${trimmed}.KS`, name: `${trimmed} (KOSPI)`, exchange: "KOSPI", type: "EQUITY" },
+            { symbol: `${trimmed}.KQ`, name: `${trimmed} (KOSDAQ)`, exchange: "KOSDAQ", type: "EQUITY" },
+          ]);
+          setOpen(true);
+        } catch {
+          setResults([
+            { symbol: `${trimmed}.KS`, name: `${trimmed} (KOSPI)`, exchange: "KOSPI", type: "EQUITY" },
+            { symbol: `${trimmed}.KQ`, name: `${trimmed} (KOSDAQ)`, exchange: "KOSDAQ", type: "EQUITY" },
+          ]);
+          setOpen(true);
+        }
+        setLoading(false);
+        return;
+      }
+
+      // Normal search (English name / ticker)
       try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(value)}`);
+        const res = await fetch(`/api/search?q=${encodeURIComponent(trimmed)}`);
         const data = await res.json();
         setResults(data);
         setOpen(true);
@@ -72,17 +103,24 @@ export default function StockSearch({ onSelect, placeholder = "종목명 또는 
                 setOpen(false);
                 setResults([]);
               }}
-              className="w-full text-left px-4 py-3 hover:bg-card-hover transition-colors flex items-center justify-between border-b border-border/50 last:border-0"
+              className="w-full text-left px-4 py-3 hover:bg-card-hover active:bg-card-hover transition-colors flex items-center justify-between border-b border-border/50 last:border-0"
             >
-              <div>
-                <span className="text-sm font-medium text-white">{r.name}</span>
+              <div className="min-w-0">
+                <span className="text-sm font-medium text-white truncate">{r.name}</span>
                 <span className="text-xs text-gray-500 ml-2">{r.symbol}</span>
               </div>
-              <span className="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded">
+              <span className="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded shrink-0 ml-2">
                 {r.exchange}
               </span>
             </button>
           ))}
+        </div>
+      )}
+
+      {open && results.length === 0 && !loading && query.length >= 2 && (
+        <div className="absolute z-50 mt-1 w-full rounded-lg bg-card border border-border shadow-xl p-4 text-center">
+          <p className="text-xs text-gray-500 mb-1">검색 결과가 없습니다</p>
+          <p className="text-xs text-gray-600">한국 종목은 6자리 종목코드를 입력하세요 (예: 005930)</p>
         </div>
       )}
     </div>

@@ -94,13 +94,15 @@ export default function SignalsPage() {
     });
   }, [watchlist]);
 
-  // Fetch recommended stocks
+  // Fetch recommended stocks (excluding my watchlist)
   useEffect(() => {
     if (tab !== "recommend") return;
     if (recStocks.length > 0) return;
     setRecLoading(true);
-    const krRec = RECOMMEND_TICKERS.filter((t) => isKr(t.ticker));
-    const usRec = RECOMMEND_TICKERS.filter((t) => !isKr(t.ticker));
+    const myTickers = new Set(watchlist.map((w) => w.ticker));
+    const filteredRec = RECOMMEND_TICKERS.filter((t) => !myTickers.has(t.ticker));
+    const krRec = filteredRec.filter((t) => isKr(t.ticker));
+    const usRec = filteredRec.filter((t) => !isKr(t.ticker));
 
     const fetches: Promise<StockAnalysis[]>[] = [];
     if (usRec.length > 0) {
@@ -121,7 +123,8 @@ export default function SignalsPage() {
       setRecStocks(all);
       setRecLoading(false);
     });
-  }, [tab, recStocks.length]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, watchlist]);
 
   const currentStocks = tab === "my" ? stocks : recStocks;
   const currentLoading = tab === "my" ? loading : recLoading;
