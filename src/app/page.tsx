@@ -1,65 +1,131 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useEffect, useState } from "react";
+import { OsatNews, MarketOverview } from "@/lib/types";
+import DatePicker from "@/components/DatePicker";
+import NewsCard from "@/components/NewsCard";
+import OsatIndexChart from "@/components/OsatIndexChart";
+import SectorBar from "@/components/SectorBar";
+
+export default function MarketPage() {
+  const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+  const [news, setNews] = useState<OsatNews[]>([]);
+  const [overview, setOverview] = useState<MarketOverview | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    Promise.all([
+      fetch(`/api/market?type=news&date=${date}`).then((r) => r.json()),
+      fetch(`/api/market?type=overview&date=${date}`).then((r) => r.json()),
+    ]).then(([newsData, overviewData]) => {
+      setNews(newsData);
+      setOverview(overviewData);
+      setLoading(false);
+    });
+  }, [date]);
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
+        <div>
+          <h1 className="text-2xl font-bold text-white">OSAT 국제 시장 동향</h1>
+          <p className="text-sm text-gray-400 mt-1">
+            날짜별 OSAT 반도체 패키징/테스트 시장 뉴스 및 분석
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+        <DatePicker value={date} onChange={setDate} />
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-20">
+          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-accent" />
         </div>
-      </main>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left: News */}
+          <div className="lg:col-span-2 space-y-4">
+            <h2 className="text-lg font-semibold text-white mb-4">
+              {date} 주요 뉴스 ({news.length}건)
+            </h2>
+            {news.map((item) => (
+              <NewsCard key={item.id} news={item} />
+            ))}
+          </div>
+
+          {/* Right: Overview */}
+          <div className="space-y-6">
+            {/* OSAT Index */}
+            {overview && (
+              <div className="rounded-xl bg-card border border-border p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wide">
+                    OSAT Index
+                  </h3>
+                  <div className="text-right">
+                    <div className="text-2xl font-bold text-white">
+                      {overview.osatIndex.toFixed(2)}
+                    </div>
+                    <div
+                      className={`text-sm font-mono ${
+                        overview.osatIndexChange >= 0
+                          ? "text-green-400"
+                          : "text-red-400"
+                      }`}
+                    >
+                      {overview.osatIndexChange >= 0 ? "+" : ""}
+                      {overview.osatIndexChange.toFixed(2)}%
+                    </div>
+                  </div>
+                </div>
+                <OsatIndexChart />
+              </div>
+            )}
+
+            {/* Sector Performance */}
+            {overview && (
+              <div className="rounded-xl bg-card border border-border p-5">
+                <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-4">
+                  섹터별 등락
+                </h3>
+                <SectorBar sectors={overview.sectorPerformance} />
+              </div>
+            )}
+
+            {/* Quick Stats */}
+            <div className="rounded-xl bg-card border border-border p-5">
+              <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-4">
+                시장 요약
+              </h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <div className="text-xs text-gray-500">전체 뉴스</div>
+                  <div className="text-xl font-bold text-white">{news.length}건</div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500">긍정 뉴스</div>
+                  <div className="text-xl font-bold text-green-400">
+                    {news.filter((n) => n.sentiment === "positive").length}건
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500">부정 뉴스</div>
+                  <div className="text-xl font-bold text-red-400">
+                    {news.filter((n) => n.sentiment === "negative").length}건
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500">중립 뉴스</div>
+                  <div className="text-xl font-bold text-gray-300">
+                    {news.filter((n) => n.sentiment === "neutral").length}건
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
